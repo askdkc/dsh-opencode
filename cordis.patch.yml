@@ -1,0 +1,20 @@
+# Add the two live OpenCode routes and this plugin's composition entry.
+# This patch never touches llm-pi-ai, openai-codex, or any other existing row:
+# unlike a targeted replace, an insert cannot lose another bundle's config.
+- insert:
+    - id: opencode-live
+      name: './lib/index.js'
+      config:
+        providers:
+          opencode-zen-live:
+            product: zen
+            apiKeyEnv: OPENCODE_API_KEY
+          opencode-go-live:
+            product: go
+            apiKeyEnv: OPENCODE_API_KEY
+        catalog:
+          refreshIntervalMs: 900000
+          listRevalidateAfterMs: 60000
+          timeoutMs: 15000
+          maxStaleMs: 604800000
+          requireFresh: false

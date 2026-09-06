@@ -1,0 +1,79 @@
+{
+  "name": "dsh-opencode",
+  "version": "0.1.0",
+  "description": "Out-of-tree DSH bundle with live dynamic OpenCode Zen / Go model catalogs",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:live": "OPENCODE_LIVE_TESTS=1 vitest run tests/live.spec.ts",
+    "pack:check": "npm pack --dry-run"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-atomic-write": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-home-paths": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-launch-environment": "0.1.2-rc.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-commands": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-credentials": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-settings": "0.1.2-rc.1",
+    "@earendil-works/pi-ai": ">=0.84.2 <0.86"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-agent": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-atomic-write": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-attachment": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-commands": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-credentials": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-credentials-local": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-fs": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-home-paths": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-launch-environment": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-session": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-settings": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-settings-file": "0.1.2-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.2",
+    "@earendil-works/pi-ai": "0.84.2",
+    "@types/node": "22.20.0",
+    "tsdown": "0.22.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8",
+    "yaml": "2.8.1"
+  }
+}
