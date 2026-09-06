@@ -32,6 +32,7 @@ import { Config, assertServiceable, resolveConfig } from './config.ts'
 import type { ResolvedPluginConfig } from './config.ts'
 import { DEFAULT_MAX_REQUEST_IMAGE_BYTES, DEFAULT_REQUEST_IMAGE_MAX_BYTES, DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET } from './config.ts'
 import { apiKeyOnlyAuth, describeCredential, resolveApiKeyFor, staticAuthBridge } from './credentials.ts'
+import { keyConfigured, keyReadonly, storeApiKey } from './keyring.ts'
 import { registerCommands } from './commands.ts'
 import type { Product, RouteId } from './normalize.ts'
 import { ROUTE_BY_PRODUCT } from './normalize.ts'
@@ -230,6 +231,9 @@ export function apply(ctx: Context, config: Config = {}): void {
         if (provider === undefined) return undefined
         return describeCredential(ctx, provider.apiKeyEnv)
       },
+      storeApiKey: (value) => storeApiKey(ctx, currentConfig.providers.values(), value),
+      keyConfigured: () => keyConfigured(ctx, currentConfig.providers.values()),
+      keyReadonly: () => keyReadonly(ctx, currentConfig.providers.values()),
     })
   })
 

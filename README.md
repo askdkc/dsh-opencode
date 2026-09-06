@@ -20,15 +20,21 @@ pnpm dsh plugin --profile web remove dsh-opencode
 ## 使い方
 
 1. DSH を再起動すると両ルートが登録される(以降のカタログ更新に再起動は不要)
-2. Web の 設定 > モデル > OpenCode Zen (Live) の「編集」を開き、マスク済み API キー入力欄にキーを貼り付けて保存
+2. `/dsh-opencode` を実行して API キーを設定する
+   - キー未設定ならコマンドの入力フィールドにキーを貼って再度実行
+   - DSH の opencode キー保存先(`OPENCODE_API_KEY`)に書き込み、設定や他の参照を変えていないか検証
 3. モデルセレクターから OpenCode のモデルを選んで使う
 
 | コマンド | 効果 |
 |---|---|
-| `/dsh-opencode` | ステータス表示とキー設定場所の案内 |
+| `/dsh-opencode [<api-key>]` | API キーを保存して Zen/Go を有効化(未入力なら状態表示) |
 | `/opencode-refresh [all\|zen\|go]` | カタログを強制更新 |
 | `/opencode-status` | 更新時刻・エラー・モデル数・キー設定状況 |
 | `/opencode-models <zen\|go> [--all]` | モデル一覧(`--all` で非対応含む) |
+
+- API キーはコマンドの入力フィールドで受け取り、`recordInput: false` でログに残さない
+- 保存後、設定セクションと他の認証参照が変わっていないことを検証してから成功を報告する
+- 環境変数 `OPENCODE_API_KEY`(両ルート既定参照)でも可
 
 ## 設定
 
@@ -48,7 +54,6 @@ catalog:
   requireFresh: false
 ```
 
-- API キーは設定 UI から保存(コマンド引数では受け付けない)。環境変数 `OPENCODE_API_KEY` でも可
 - `cachePath` でキャッシュ位置を変更可能(既定は DSH ホーム下 `cache/opencode-live/catalog.json`)
 
 ## 開発
