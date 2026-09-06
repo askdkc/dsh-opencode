@@ -16,8 +16,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinition, CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import type { CatalogManager } from './catalog.ts'
 import type { ResolvedPluginConfig } from './config.ts'
+import type { CredentialFacts } from './credentials.ts'
 import type { CatalogModel, Product, RouteId } from './normalize.ts'
-import { ROUTE_BY_PRODUCT } from './normalize.ts'
+import { PRODUCT_BY_ROUTE, ROUTE_BY_PRODUCT } from './normalize.ts'
 import { describeNonReadyState } from './normalize.ts'
 
 /** Services the command handlers read. */
@@ -25,11 +26,12 @@ export interface CommandServices {
   readonly catalog: CatalogManager
   readonly config: () => ResolvedPluginConfig
   /** Presence-only credential facts for one route's reference. */
-  readonly describeCredential: (route: RouteId) => Promise<boolean>
+  readonly describeCredential: (route: RouteId) => Promise<CredentialFacts | undefined>
 }
 
 const USAGE_REFRESH = 'Usage: /opencode-refresh [all|zen|go]'
 const USAGE_MODELS = 'Usage: /opencode-models <zen|go> [--all]'
+const USAGE_ENABLE = 'Usage: /dsh-opencode — never pass the API key in the command line'
 
 /** Whether one date stamp renders as a short local time. */
 function renderTime(timestamp: number | undefined): string {
@@ -41,10 +43,10 @@ function renderTime(timestamp: number | undefined): string {
 async function productStatus(ctx: Context, services: CommandServices, product: Product): Promise<string> {
   const route = ROUTE_BY_PRODUCT[product]
   const view = services.catalog.current?.products[product]
-  const configured = await services.describeCredential(route)
+  const facts = await services.describeCredential(route)
   const lines = [
     `${route} (${product}):`,
-    `  credential: ${configured === undefined ? 'unknown (no credentials service)' : configured ? 'configured' : 'not configured'}`,
+    `  credential: ${facts === undefined ? 'unknown (no credentials service)' : facts.configured ? 'configured' : 'not configured'}`,
     `  models ready: ${view?.counts.ready ?? 0}, pending: ${(view?.counts['metadata-pending'] ?? 0) + (view?.counts['unsupported-protocol'] ?? 0)}, catalog-only: ${view?.counts['catalog-only'] ?? 0}, removed: ${view?.counts.removed ?? 0}`,
   ]
   if (view !== undefined) {
@@ -149,6 +151,41 @@ export function commandDefinitions(ctx: Context, services: CommandServices): Com
         if (all && view.counts.ready === 0 && ordered.length === 0) {
           lines.push('  (no candidates published yet)')
         }
+        return { kind: 'success', text: lines.join('\n') }
+      },
+    },
+    {
+      name: 'dsh-opencode',
+      description: 'Enable OpenCode Zen/Go immediately after the API key is stored securely',
+      recordInput: false,
+      handler: async (invocation: CommandInvocation): Promise<CommandResult> => {
+        if (invocation.rawInput.trim().length > 0) return { kind: 'error', text: USAGE_ENABLE }
+        const routes = [ROUTE_BY_PRODUCT.zen, ROUTE_BY_PRODUCT.go]
+        const anyConfigured = (await Promise.all(routes.map(async route => {
+          const facts = await services.describeCredential(route)
+          return facts?.configured === true
+        }))).some(configured => configured)
+        if (!anyConfigured) {
+          return {
+            kind: 'success',
+            text: [
+              'No OpenCode API key is configured yet.',
+              'Store it securely through the standard credentials input (the web Models page writes it),',
+              'then run /dsh-opencode again to refresh both catalogs and enable the routes immediately.',
+              'This command never accepts, records, or displays key values.',
+            ].join('\n'),
+          }
+        }
+        if (invocation.signal.aborted) return { kind: 'success', text: 'Refresh cancelled.' }
+        try {
+          await services.catalog.refresh({ products: ['zen', 'go'], signal: invocation.signal })
+        } catch {
+          // The catalog keeps serving its last good snapshot; per-source
+          // errors are visible through /opencode-status rather than failing
+          // the enable command wholesale.
+        }
+        const lines = ['OpenCode API key configured. Zen and Go are enabled:']
+        for (const route of routes) lines.push(await productStatus(ctx, services, PRODUCT_BY_ROUTE[route]))
         return { kind: 'success', text: lines.join('\n') }
       },
     },

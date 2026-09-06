@@ -227,9 +227,8 @@ export function apply(ctx: Context, config: Config = {}): void {
       config: () => currentConfig,
       describeCredential: async (route) => {
         const provider = currentConfig.providers.get(route)
-        if (provider === undefined) return false
-        const info = await describeCredential(ctx, provider.apiKeyEnv)
-        return info?.configured === true
+        if (provider === undefined) return undefined
+        return describeCredential(ctx, provider.apiKeyEnv)
       },
     })
   })

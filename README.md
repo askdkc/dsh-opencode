@@ -57,6 +57,7 @@ Refreshes run single-flight per source (Models.dev once for both products) with 
 
 | Command | Effect |
 |---|---|
+| `/dsh-opencode` | After the key is stored securely, refreshes both catalogs and enables Zen/Go immediately; never accepts key values |
 | `/opencode-refresh [all\|zen\|go]` | Force a catalog refresh (joins in-flight fetches) |
 | `/opencode-status` | Freshness, per-source errors, ready/pending counts, credential presence |
 | `/opencode-models <zen\|go> [--all]` | Ready models, or every candidate with its state and reason |

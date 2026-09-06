@@ -211,7 +211,7 @@ describe('opencode-live commands (direct handlers)', () => {
     const definitions = commandDefinitions({} as Context, {
       catalog,
       config: () => resolveConfig({}),
-      describeCredential: async () => true,
+      describeCredential: async () => ({ configured: true, writable: true }),
     })
     const status = definitions.find(definition => definition.name === 'opencode-status')
     const result = await status?.handler({ rawInput: '', signal: new AbortController().signal } as never)
@@ -230,7 +230,7 @@ describe('opencode-live commands (direct handlers)', () => {
     const definitions = commandDefinitions({} as Context, {
       catalog,
       config: () => resolveConfig({}),
-      describeCredential: async () => false,
+      describeCredential: async () => ({ configured: false, writable: true }),
     })
     const models = definitions.find(definition => definition.name === 'opencode-models')
     const readyOnly = await models?.handler({ rawInput: 'zen', signal: new AbortController().signal } as never)
@@ -257,7 +257,7 @@ describe('opencode-live commands (direct handlers)', () => {
     const definitions = commandDefinitions({} as Context, {
       catalog,
       config: () => resolveConfig({}),
-      describeCredential: async () => false,
+      describeCredential: async () => ({ configured: false, writable: true }),
     })
     const refresh = definitions.find(definition => definition.name === 'opencode-refresh')
     const bad = await refresh?.handler({ rawInput: 'everything', signal: new AbortController().signal } as never)
@@ -265,5 +265,46 @@ describe('opencode-live commands (direct handlers)', () => {
     const models = definitions.find(definition => definition.name === 'opencode-models')
     const badModels = await models?.handler({ rawInput: 'everything', signal: new AbortController().signal } as never)
     expect(badModels?.kind).toBe('error')
+  })
+
+  it('guides secure registration and never accepts a key in the command line', async () => {
+    const catalog = new CatalogManager({ config: testCatalogConfig() })
+    const definitions = commandDefinitions({} as Context, {
+      catalog,
+      config: () => resolveConfig({}),
+      describeCredential: async () => ({ configured: false, writable: true }),
+    })
+    const enable = definitions.find(definition => definition.name === 'dsh-opencode')
+    const withKey = await enable?.handler({ rawInput: 'sk-test-123', signal: new AbortController().signal } as never)
+    expect(withKey?.kind).toBe('error')
+    expect(withKey?.kind === 'error' ? withKey.text : '').toContain('never pass the API key')
+    const withoutKey = await enable?.handler({ rawInput: '', signal: new AbortController().signal } as never)
+    expect(withoutKey?.kind).toBe('success')
+    const text = withoutKey?.kind === 'success' ? withoutKey.text ?? '' : ''
+    expect(text).toContain('No OpenCode API key is configured yet')
+    expect(text).toContain('never accepts, records, or displays')
+    expect(text).not.toMatch(/sk-/i)
+    catalog.stop()
+  })
+
+  it('refreshes both catalogs and confirms readiness once a key is configured', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'opencode-commands-'))
+    homes.push(home)
+    const catalog = await commandCatalog(home)
+    const definitions = commandDefinitions({} as Context, {
+      catalog,
+      config: () => resolveConfig({}),
+      describeCredential: async () => ({ configured: true, writable: true }),
+    })
+    const enable = definitions.find(definition => definition.name === 'dsh-opencode')
+    const result = await enable?.handler({ rawInput: '', signal: new AbortController().signal } as never)
+    expect(result?.kind).toBe('success')
+    const text = result?.kind === 'success' ? result.text ?? '' : ''
+    expect(text).toContain('Zen and Go are enabled')
+    expect(text).toContain('opencode-zen-live')
+    expect(text).toContain('opencode-go-live')
+    expect(text).toContain('credential: configured')
+    expect(text).not.toMatch(/sk-/i)
+    catalog.stop()
   })
 })

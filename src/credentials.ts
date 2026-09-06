@@ -26,7 +26,7 @@ interface PiAiAuthBridge {
 }
 
 /** Presence-only credential facts, never the value. */
-interface CredentialPresence {
+export interface CredentialFacts {
   configured: boolean
   source?: string
   writable: boolean
@@ -92,7 +92,7 @@ export function apiKeyOnlyAuth(name: string): ApiKeyAuth {
  * @param ref - the credential reference to describe.
  * @returns presence facts, or `undefined` without a credential service.
  */
-export async function describeCredential(ctx: Context, ref: CredentialRef): Promise<CredentialPresence | undefined> {
+export async function describeCredential(ctx: Context, ref: CredentialRef): Promise<CredentialFacts | undefined> {
   const credentials = ctx.get('credentials')
   if (credentials === undefined) return undefined
   return credentials.describe(ref)
