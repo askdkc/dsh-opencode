@@ -212,7 +212,6 @@ describe('opencode-live commands (direct handlers)', () => {
       catalog,
       config: () => resolveConfig({}),
       describeCredential: async () => ({ configured: true, writable: true }),
-      storeCredential: async () => {},
     })
     const status = definitions.find(definition => definition.name === 'opencode-status')
     const result = await status?.handler({ rawInput: '', signal: new AbortController().signal } as never)
@@ -232,7 +231,6 @@ describe('opencode-live commands (direct handlers)', () => {
       catalog,
       config: () => resolveConfig({}),
       describeCredential: async () => ({ configured: false, writable: true }),
-      storeCredential: async () => {},
     })
     const models = definitions.find(definition => definition.name === 'opencode-models')
     const readyOnly = await models?.handler({ rawInput: 'zen', signal: new AbortController().signal } as never)
@@ -260,7 +258,6 @@ describe('opencode-live commands (direct handlers)', () => {
       catalog,
       config: () => resolveConfig({}),
       describeCredential: async () => ({ configured: false, writable: true }),
-      storeCredential: async () => {},
     })
     const refresh = definitions.find(definition => definition.name === 'opencode-refresh')
     const bad = await refresh?.handler({ rawInput: 'everything', signal: new AbortController().signal } as never)
@@ -270,43 +267,19 @@ describe('opencode-live commands (direct handlers)', () => {
     expect(badModels?.kind).toBe('error')
   })
 
-  it('stores the key through the credential seam and enables both routes', async () => {
+  it('refuses key text as argument and never stores it', async () => {
     const catalog = new CatalogManager({ config: testCatalogConfig() })
-    const stored: string[] = []
     const definitions = commandDefinitions({} as Context, {
       catalog,
       config: () => resolveConfig({}),
       describeCredential: async () => ({ configured: false, writable: true }),
-      storeCredential: async (ref, value) => {
-        stored.push(`${ref}=${value}`)
-      },
     })
     const enable = definitions.find(definition => definition.name === 'dsh-opencode')
     const withKey = await enable?.handler({ rawInput: 'sk-test-123', signal: new AbortController().signal } as never)
-    expect(withKey?.kind).toBe('success')
-    expect(stored).toContain('OPENCODE_API_KEY=sk-test-123')
-    const text = withKey?.kind === 'success' ? withKey.text ?? '' : ''
-    expect(text).toContain('OpenCode API key stored')
-    expect(text).toContain('Zen and Go are enabled')
+    expect(withKey?.kind).toBe('error')
+    const text = withKey?.kind === 'error' ? withKey.text ?? '' : ''
+    expect(text).toContain('never accepts the key as text')
     expect(text).not.toMatch(/sk-test-123/i)
-    catalog.stop()
-  })
-
-  it('rejects an unusable key without storing it', async () => {
-    const catalog = new CatalogManager({ config: testCatalogConfig() })
-    const stored: string[] = []
-    const definitions = commandDefinitions({} as Context, {
-      catalog,
-      config: () => resolveConfig({}),
-      describeCredential: async () => ({ configured: false, writable: true }),
-      storeCredential: async (ref, value) => {
-        stored.push(`${ref}=${value}`)
-      },
-    })
-    const enable = definitions.find(definition => definition.name === 'dsh-opencode')
-    const blank = await enable?.handler({ rawInput: 'sk\nnot-a-header-safe-key', signal: new AbortController().signal } as never)
-    expect(blank?.kind).toBe('error')
-    expect(stored).toHaveLength(0)
     catalog.stop()
   })
 
@@ -316,14 +289,13 @@ describe('opencode-live commands (direct handlers)', () => {
       catalog,
       config: () => resolveConfig({}),
       describeCredential: async () => ({ configured: false, writable: true }),
-      storeCredential: async () => {},
     })
     const enable = definitions.find(definition => definition.name === 'dsh-opencode')
     const withoutKey = await enable?.handler({ rawInput: '', signal: new AbortController().signal } as never)
     expect(withoutKey?.kind).toBe('success')
     const text = withoutKey?.kind === 'success' ? withoutKey.text ?? '' : ''
     expect(text).toContain('No OpenCode API key is configured yet')
-    expect(text).toContain('Run /dsh-opencode <your-api-key>')
+    expect(text).toContain('Settings > Models')
     expect(text).not.toMatch(/sk-/i)
     catalog.stop()
   })
@@ -336,7 +308,6 @@ describe('opencode-live commands (direct handlers)', () => {
       catalog,
       config: () => resolveConfig({}),
       describeCredential: async () => ({ configured: true, writable: true }),
-      storeCredential: async () => {},
     })
     const enable = definitions.find(definition => definition.name === 'dsh-opencode')
     const result = await enable?.handler({ rawInput: '', signal: new AbortController().signal } as never)
