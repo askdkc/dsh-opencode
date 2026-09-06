@@ -24,6 +24,7 @@ import type {
   LlmConfigurableProvider,
 } from '@deepseek-ai/dsh-llm'
 import type { ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
+import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import type {} from '@deepseek-ai/dsh-settings'
 import { LiveOpenCodeAdapter } from './adapter.ts'
@@ -229,6 +230,13 @@ export function apply(ctx: Context, config: Config = {}): void {
         const provider = currentConfig.providers.get(route)
         if (provider === undefined) return undefined
         return describeCredential(ctx, provider.apiKeyEnv)
+      },
+      storeCredential: async (ref: CredentialRef, value: string) => {
+        const credentials = ctx.get('credentials')
+        if (credentials === undefined) {
+          throw new Error('opencode-live: no credentials service is mounted; export the API key in the launch environment instead')
+        }
+        await credentials.set(ref, value)
       },
     })
   })

@@ -57,12 +57,12 @@ Refreshes run single-flight per source (Models.dev once for both products) with 
 
 | Command | Effect |
 |---|---|
-| `/dsh-opencode` | After the key is stored securely, refreshes both catalogs and enables Zen/Go immediately; never accepts key values |
+| `/dsh-opencode [<api-key>]` | Store the API key securely and enable Zen/Go immediately; with no argument, checks status and guides setup |
 | `/opencode-refresh [all\|zen\|go]` | Force a catalog refresh (joins in-flight fetches) |
 | `/opencode-status` | Freshness, per-source errors, ready/pending counts, credential presence |
 | `/opencode-models <zen\|go> [--all]` | Ready models, or every candidate with its state and reason |
 
-None of these commands displays key values or fragments, and none registers a model-visible tool.
+None of these commands displays key values or fragments, and none registers a model-visible tool. `/dsh-opencode` accepts the key only as its single argument and writes it through the DSH credential seam (`recordInput: false` keeps it out of session logs); it never echoes the value back.
 
 ## Configuration
 
