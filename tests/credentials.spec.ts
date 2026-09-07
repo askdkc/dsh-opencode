@@ -60,6 +60,18 @@ describe('resolveApiKeyFor', () => {
     await expect(resolveApiKeyFor(ctx, 'opencode-go-live', profileWith('OPENCODE_API_KEY')))
       .rejects.toMatchObject({ code: expect.any(String) })
   })
+
+  it.each(['ja', 'en'])('keeps the missing-key error actionable in %s', async preference => {
+    const ctx = {
+      get: (name: string) => name === 'credentials' ? { resolve: async () => undefined }
+        : name === 'settings' ? { get: () => ({ preference }) } : undefined,
+    } as unknown as Context
+    await expect(resolveApiKeyFor(ctx, 'opencode-go-live', profileWith('OPENCODE_API_KEY')))
+      .rejects.toMatchObject({
+        code: 'MISSING_CREDENTIAL',
+        message: expect.stringContaining(preference === 'ja' ? '「APIキーを保存」' : '"Save API key"'),
+      })
+  })
 })
 
 describe('apiKeyOnlyAuth', () => {

@@ -13,6 +13,11 @@ export interface SaveResult {
   message: string
 }
 
+export interface DeleteResult {
+  kind: 'deleted' | 'deleted-unconfirmed' | 'error'
+  message: string
+}
+
 interface RemoteResult<T> {
   ok: boolean
   value?: T
@@ -168,6 +173,38 @@ export class CredentialController {
     return this.states.get(route)
   }
 
+  /** Remove the saved credential, preserving the provider and its reference. */
+  public async remove(route: Route, displayedRef: string): Promise<DeleteResult> {
+    const displayed = this.states.get(route)
+    const fence = this.disposalGeneration
+    const current = await this.loadRoute(route)
+    if (this.disposed || this.disposalGeneration !== fence) return { kind: 'error', message: 'The settings form was closed. Open it again and retry.' }
+    if (displayed?.kind !== 'known' || current.kind !== 'known' || displayed.ref !== displayedRef || current.ref !== displayedRef
+      || displayed.sharedWith.join(',') !== current.sharedWith.join(',')) {
+      return { kind: 'error', message: 'The API key settings changed. Check which providers share the key and retry.' }
+    }
+    if (!current.writable) return { kind: 'error', message: 'This credential is read-only. Remove it from the environment that launches DSH.' }
+    if (this.inFlight.has(current.ref)) return { kind: 'error', message: 'This credential is already being updated.' }
+    this.inFlight.add(current.ref)
+    try {
+      const result = await this.ctx.remote.credentials.unset(current.ref)
+      if (!isSuccessfulWrite(result)) return { kind: 'error', message: 'Could not delete the API key. Try again.' }
+      await Promise.all([route, ...current.sharedWith].map(other => this.loadRoute(other)))
+      const confirmed = this.state(route)
+      if (confirmed?.kind !== 'known' || confirmed.ref !== current.ref) {
+        return { kind: 'deleted-unconfirmed', message: 'The deletion request succeeded, but the key status could not be confirmed. Reload Settings > Models.' }
+      }
+      if (confirmed.configured) {
+        return { kind: 'deleted-unconfirmed', message: 'The saved key was removed, but an API key is still configured. Check its source in Settings > Models.' }
+      }
+      return { kind: 'deleted', message: current.sharedWith.length > 0 ? 'API key deleted for OpenCode Zen and Go.' : 'API key deleted.' }
+    } catch {
+      return { kind: 'error', message: 'Could not delete the API key. Try again.' }
+    } finally {
+      this.inFlight.delete(current.ref)
+    }
+  }
+
   public async save(route: Route, value: string, displayedRef: string): Promise<SaveResult> {
     const normalized = value.trim()
     if (normalized.length === 0 || /[\r\n]/.test(normalized) || /^['"].*['"]$/.test(normalized) || normalized.includes('=')) {
@@ -181,7 +218,7 @@ export class CredentialController {
       return { kind: 'error', message: 'The credential reference changed. Reload its status and retry.' }
     }
     if (!current.writable) return { kind: 'error', message: 'This credential is read-only. Update it in the environment that launches DSH.' }
-    if (this.inFlight.has(current.ref)) return { kind: 'error', message: 'This credential is already being saved.' }
+    if (this.inFlight.has(current.ref)) return { kind: 'error', message: 'This credential is already being updated.' }
     this.inFlight.add(current.ref)
     try {
       if (this.disposed || this.disposalGeneration !== fence) return { kind: 'error', message: 'The settings form was closed. Open it again and retry.' }

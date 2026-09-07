@@ -12,6 +12,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { hostText } from './language.ts'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
@@ -58,7 +59,7 @@ export async function resolveApiKeyFor(
     : launchEnvironmentOf(ctx).get(ref)?.value
   if (hit !== undefined && hit.length > 0) return assertUsableApiKey(hit, 'opencode-live', ref)
   throw new LlmError(
-    `${profile.displayName}のAPIキーが未設定です。Settings > Models でAPIキーを入力して「Save API key」を押してから、もう一度送信してください。`,
+    `${profile.displayName}: ${hostText(ctx, 'The API key is not configured. Enter it in Settings > Models, click "Save API key", then send your message again.')}`,
     'MISSING_CREDENTIAL',
   )
 }

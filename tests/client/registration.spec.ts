@@ -29,6 +29,7 @@ describe('shipped Client with the real Harness slot registry', () => {
     ctx.set('remote', { credentials: {
       describe: async (refs: string[]) => ({ ok: true, value: Object.fromEntries(refs.map(ref => [ref, { configured: values.has(ref), writable: true }])) }),
       set: async (ref: string, value: string) => { values.set(ref, value); return { ok: true } },
+      unset: async (ref: string) => { values.delete(ref); return { ok: true } },
     }, $on: () => () => undefined } as never)
     ctx.set('remote.credentials', ctx.remote.credentials)
     const declare = () => ctx.slots.register({
@@ -46,6 +47,10 @@ describe('shipped Client with the real Harness slot registry', () => {
     expect(await controller.save('zen', 'sk-fixture-only', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'saved' })
     expect(values.get('OPENCODE_API_KEY')).toBe('sk-fixture-only')
     expect(controller.state('go')).toMatchObject({ configured: true })
+    expect(await controller.remove('zen', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'deleted' })
+    expect(values.size).toBe(0)
+    expect(controller.state('zen')).toMatchObject({ configured: false })
+    expect(controller.state('go')).toMatchObject({ configured: false })
     removeModels?.()
     expect(entries()).toHaveLength(0)
     removeModels = declare()
@@ -53,5 +58,45 @@ describe('shipped Client with the real Harness slot registry', () => {
     await fiber.dispose()
     expect(entries()).toHaveLength(0)
     removeModels()
+  })
+})
+
+describe('command notice registration', () => {
+  it('shows local command results, handles late overlay loading, and disposes its listener', async () => {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(await registryPlugin())
+    for (const service of ['settingsScope', 'remote', 'remote.credentials']) ctx.provide(service)
+    ctx.set('settingsScope', { describe: () => ({ subscribe: () => () => undefined, ensure: async () => undefined, getSnapshot: () => ({ status: 'ready', view: { namespaces: [] } }) }) } as never)
+    ctx.set('remote', { credentials: {}, $on: () => () => undefined } as never)
+    ctx.set('remote.credentials', ctx.remote.credentials)
+    const client = await clientModule<typeof Client>(new URL('../../lib/client.js', import.meta.url))
+    const fiber = await ctx.plugin(client)
+    const declare = () => ctx.slots.register({
+      name: 'root', children: { 'shell.overlay': { kind: 'list', scope: 'root' } },
+    }, (_props: PropsRenderSlots<'shell.overlay'>) => null)
+    let removeOverlay = declare()
+    const notice = () => ctx.slots.entriesOfSlot('shell.overlay')[0]?.inject?.().controller as import('../../src/client/command-notice.ts').CommandNoticeController
+    const controller = notice()
+    expect(controller.getSnapshot()).toBeUndefined()
+    ctx.emit('command/executed', 'session-test' as never, 'other-command', { kind: 'error', text: 'unrelated' })
+    expect(controller.getSnapshot()).toBeUndefined()
+    const text = 'OpenCodeのAPIキーが未設定です。\n1. Settings > Models を開きます。\n2. APIキーを保存してください。'
+    ctx.emit('command/executed', 'session-test' as never, 'dsh-opencode', { kind: 'error', text })
+    expect(controller.getSnapshot()).toBe(text)
+    controller.close()
+    expect(controller.getSnapshot()).toBeUndefined()
+    ctx.emit('command/executed', 'session-test' as never, 'dsh-opencode', { kind: 'success', text: 'APIキーは保存されています。' })
+    expect(controller.getSnapshot()).toContain('保存されています')
+    removeOverlay()
+    expect(controller.getSnapshot()).toBeUndefined()
+    removeOverlay = declare()
+    expect(notice().getSnapshot()).toBeUndefined()
+    const remounted = notice()
+    await fiber.dispose()
+    ctx.emit('command/executed', 'session-test' as never, 'dsh-opencode', { kind: 'error', text })
+    expect(remounted.getSnapshot()).toBeUndefined()
+    expect(ctx.slots.entriesOfSlot('shell.overlay')).toHaveLength(0)
+    removeOverlay()
   })
 })

@@ -296,7 +296,7 @@ describe('opencode-live commands (direct handlers)', () => {
 
   it.each(['', 'status'])('gives a short actionable message when the key is missing (%s)', async (rawInput) => {
     const catalog = new CatalogManager({ config: testCatalogConfig() })
-    const definitions = commandDefinitions({} as Context, {
+    const definitions = commandDefinitions({ get: () => ({ get: () => ({ preference: 'ja' }) }) } as unknown as Context, {
       catalog,
       describeCredential: async () => ({ configured: false, writable: true }),
     })
@@ -304,15 +304,15 @@ describe('opencode-live commands (direct handlers)', () => {
     expect(result?.kind).toBe('error')
     expect(result?.text).toMatch(/^OpenCodeのAPIキーが未設定です。/)
     expect(result?.text).toContain('Settings > Models')
-    expect(result?.text).toContain('Save API key')
-    expect(result?.text?.split('\n')).toHaveLength(2)
+    expect(result?.text).toContain('APIキーを保存')
+    expect(result?.text?.split('\n')).toHaveLength(4)
     expect(result?.text).not.toMatch(/credential:|models ready:|official list:|opencode-zen-live|opencode-go-live/)
     catalog.stop()
   })
 
   it('directs users with stored keys to the model picker without claiming authentication was verified', async () => {
     const catalog = new CatalogManager({ config: testCatalogConfig() })
-    const definitions = commandDefinitions({} as Context, {
+    const definitions = commandDefinitions({ get: () => ({ get: () => ({ preference: 'ja' }) }) } as unknown as Context, {
       catalog,
       describeCredential: async () => ({ configured: true, writable: true }),
     })
@@ -326,7 +326,7 @@ describe('opencode-live commands (direct handlers)', () => {
 
   it('names only the product whose key is missing', async () => {
     const catalog = new CatalogManager({ config: testCatalogConfig() })
-    const definitions = commandDefinitions({} as Context, {
+    const definitions = commandDefinitions({ get: () => ({ get: () => ({ preference: 'ja' }) }) } as unknown as Context, {
       catalog,
       describeCredential: async route => ({ configured: route === 'opencode-zen-live', writable: true }),
     })
@@ -337,7 +337,7 @@ describe('opencode-live commands (direct handlers)', () => {
 
   it.each(['absent', 'throws'])('distinguishes an unavailable credential check from a missing key (%s)', async mode => {
     const catalog = new CatalogManager({ config: testCatalogConfig() })
-    const definitions = commandDefinitions({} as Context, {
+    const definitions = commandDefinitions({ get: () => ({ get: () => ({ preference: 'ja' }) }) } as unknown as Context, {
       catalog,
       describeCredential: async () => {
         if (mode === 'throws') throw new Error('internal credential backend detail')

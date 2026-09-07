@@ -11,6 +11,7 @@ function context(
   },
 ) {
   const set = vi.fn(async () => writeResult)
+  const unset = vi.fn(async (ref: string) => { delete providers[ref]; return { ok: true } })
   const describe = vi.fn(async (refs: readonly string[]) => ({
     ok: true,
     value: Object.fromEntries(refs.map(ref => [ref, { configured: providers[ref] === 'configured', writable }])),
@@ -25,9 +26,9 @@ function context(
   }
   const ctx = {
     settingsScope: { describe: () => settings },
-    remote: { credentials: { describe, set }, $on: (_event: string, _listener: () => void): (() => void) => () => undefined },
+    remote: { credentials: { describe, set, unset }, $on: (_event: string, _listener: () => void): (() => void) => () => undefined },
   }
-  return { ctx, set, describe, settings }
+  return { ctx, set, unset, describe, settings }
 }
 
 describe('Client credential controller', () => {
@@ -115,6 +116,93 @@ describe('Client credential controller', () => {
     release({ ok: true, value: { OPENCODE_API_KEY: { configured: false, writable: true } } })
     expect(await old).toMatchObject({ configured: true })
     expect(controller.state('zen')).toMatchObject({ configured: true })
+  })
+
+  it('deletes a shared key and refreshes both routes without changing settings', async () => {
+    const values = { OPENCODE_API_KEY: 'configured' }
+    const fake = context(values)
+    const controller = new CredentialController(fake.ctx as never)
+    await controller.loadRoutes()
+    const before = structuredClone(fake.settings.getSnapshot())
+    expect(await controller.remove('zen', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'deleted', message: expect.stringContaining('Zen and Go') })
+    expect(fake.unset).toHaveBeenCalledExactlyOnceWith('OPENCODE_API_KEY')
+    expect(values).toEqual({})
+    expect(controller.state('zen')).toMatchObject({ configured: false })
+    expect(controller.state('go')).toMatchObject({ configured: false })
+    expect(fake.settings.getSnapshot()).toEqual(before)
+    expect(fake.set).not.toHaveBeenCalled()
+  })
+
+  it('deletes only the selected custom reference', async () => {
+    const values = { ZEN_KEY: 'configured', GO_KEY: 'configured' }
+    const fake = context(values, true, undefined, {
+      'opencode-zen-live': { apiKeyEnv: 'ZEN_KEY' }, 'opencode-go-live': { apiKeyEnv: 'GO_KEY' },
+    })
+    const controller = new CredentialController(fake.ctx as never)
+    await controller.loadRoutes()
+    expect(await controller.remove('go', 'GO_KEY')).toMatchObject({ kind: 'deleted' })
+    expect(values).toEqual({ ZEN_KEY: 'configured' })
+    expect(controller.state('zen')).toMatchObject({ configured: true })
+    expect(controller.state('go')).toMatchObject({ configured: false })
+  })
+
+  it('refuses deletion of read-only credentials', async () => {
+    const fake = context({ OPENCODE_API_KEY: 'configured' }, false)
+    const controller = new CredentialController(fake.ctx as never)
+    await controller.loadRoute('zen')
+    expect(await controller.remove('zen', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'error', message: expect.stringContaining('read-only') })
+    expect(fake.unset).not.toHaveBeenCalled()
+  })
+
+  it.each(['reference', 'sharing', 'unavailable', 'disposed'])('refuses deletion when %s changes during revalidation', async change => {
+    const profiles = { 'opencode-zen-live': { apiKeyEnv: 'ZEN_KEY' }, 'opencode-go-live': { apiKeyEnv: 'GO_KEY' } }
+    const fake = context({ ZEN_KEY: 'configured', GO_KEY: 'configured' }, true, undefined, profiles)
+    const controller = new CredentialController(fake.ctx as never)
+    await controller.loadRoute('zen')
+    fake.settings.ensure.mockImplementationOnce(async () => {
+      if (change === 'reference') profiles['opencode-zen-live'].apiKeyEnv = 'NEW_KEY'
+      if (change === 'sharing') profiles['opencode-go-live'].apiKeyEnv = 'ZEN_KEY'
+      if (change === 'unavailable') throw new Error('offline')
+      if (change === 'disposed') controller.dispose()
+    })
+    expect(await controller.remove('zen', 'ZEN_KEY')).toMatchObject({ kind: 'error' })
+    expect(fake.unset).not.toHaveBeenCalled()
+  })
+
+  it.each(['rejected', 'throws'])('reports a failed deletion (%s) without claiming success', async mode => {
+    const fake = context({ OPENCODE_API_KEY: 'configured' })
+    fake.unset.mockImplementationOnce(async () => {
+      if (mode === 'throws') throw new Error('backend details')
+      return { ok: false }
+    })
+    const controller = new CredentialController(fake.ctx as never)
+    await controller.loadRoute('zen')
+    expect(await controller.remove('zen', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'error', message: 'Could not delete the API key. Try again.' })
+    expect(controller.state('zen')).toMatchObject({ configured: true })
+  })
+
+  it('does not claim the key is absent when another source still supplies it', async () => {
+    const fake = context({ OPENCODE_API_KEY: 'configured' })
+    fake.unset.mockImplementationOnce(async () => ({ ok: true }))
+    const controller = new CredentialController(fake.ctx as never)
+    await controller.loadRoute('zen')
+    expect(await controller.remove('zen', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'deleted-unconfirmed', message: expect.stringContaining('still configured') })
+  })
+
+  it('blocks saving or deleting the same shared reference during a deletion', async () => {
+    const fake = context({ OPENCODE_API_KEY: 'configured' })
+    let finish!: () => void
+    fake.unset.mockImplementationOnce(() => new Promise(resolve => { finish = () => resolve({ ok: true }) }))
+    const controller = new CredentialController(fake.ctx as never)
+    await controller.loadRoutes()
+    const deletion = controller.remove('zen', 'OPENCODE_API_KEY')
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    expect(await controller.save('go', 'sk-test', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'error' })
+    expect(await controller.remove('go', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'error' })
+    expect(fake.set).not.toHaveBeenCalled()
+    expect(fake.unset).toHaveBeenCalledTimes(1)
+    finish()
+    await deletion
   })
 
 })

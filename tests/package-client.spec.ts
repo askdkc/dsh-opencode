@@ -41,6 +41,8 @@ describe('generated Client artifact', () => {
       '@deepseek-ai/dsh-client-ui-settings',
       '@deepseek-ai/dsh-client-ui-settings-models',
       '@deepseek-ai/dsh-client-ui-renderer',
+      '@deepseek-ai/dsh-client-ui-layout',
+      '@deepseek-ai/dsh-client-ui-commands',
     ])
     for (const name of packageJson.dsh?.client?.inject as string[]) {
       const dependency = JSON.parse(await readFile(new URL(`../node_modules/${name}/package.json`, import.meta.url), 'utf8'))

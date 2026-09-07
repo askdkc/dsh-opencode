@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ProviderCardExtrasOwnerProps } from '@deepseek-ai/dsh-client-ui-settings-models/client'
+import type { LanguageController } from './language.ts'
 import { OpenCodeCredentialForm } from './OpenCodeCredentialForm.tsx'
 import { routeFromProvider, type CredentialController, type RouteCredentialState } from './credential-controller.ts'
 
-export function OpenCodeProviderCard(props: ProviderCardExtrasOwnerProps & { controller: CredentialController }): ReactNode {
+export function OpenCodeProviderCard(props: ProviderCardExtrasOwnerProps & { controller: CredentialController; language: LanguageController }): ReactNode {
   const route = routeFromProvider(props.provider.provider)
   const [state, setState] = useState<RouteCredentialState>(() => ({ kind: 'loading', route: route ?? 'zen' }))
   useEffect(() => {
@@ -18,5 +19,5 @@ export function OpenCodeProviderCard(props: ProviderCardExtrasOwnerProps & { con
     return () => { active = false; dispose() }
   }, [props.controller, route])
   if (route === undefined) return null
-  return <section data-dsh-opencode-provider={route}><OpenCodeCredentialForm route={route} state={state} controller={props.controller} /></section>
+  return <section data-dsh-opencode-provider={route}><OpenCodeCredentialForm route={route} state={state} controller={props.controller} language={props.language} /></section>
 }

@@ -11,6 +11,8 @@
  * @module opencode-live/commands
  */
 
+import { setupHelp, setupUsage, setupSaved, setupCancelled } from './shared/language.ts'
+import { hostText as setupText } from './language.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinition, CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import type { CatalogManager } from './catalog.ts'
@@ -28,8 +30,6 @@ export interface CommandServices {
 
 const USAGE_REFRESH = 'Usage: /opencode-refresh [all|zen|go]'
 const USAGE_MODELS = 'Usage: /opencode-models <zen|go> [--all]'
-const SETUP_HELP = 'Settings > Models で OpenCode Zen (Live) または OpenCode Go (Live) を開き、APIキーを入力して「Save API key」を押してください。'
-const USAGE_ENABLE = 'APIキーはチャットに入力せず、Settings > Models から設定してください。'
 
 /** User-facing setup guidance; detailed diagnostics belong to /opencode-status. */
 async function setupGuidance(services: CommandServices): Promise<CommandResult> {
@@ -45,14 +45,14 @@ async function setupGuidance(services: CommandServices): Promise<CommandResult> 
     else if (!result.value.configured) missing.push(labels[index]!)
   })
   if (unknown.length > 0) {
-    const missingText = missing.length > 0 ? `${missing.join('・')}のAPIキーが未設定です。\n` : ''
-    return { kind: 'error', text: `${missingText}${unknown.join('・')}のAPIキー設定を確認できませんでした。\n${SETUP_HELP}` }
+    const missingText = missing.length > 0 ? `${missing.join(' and ')} API key is not configured.\n` : ''
+    return { kind: 'error', text: `${missingText}Could not check the API key settings for ${unknown.join(' and ')}.\n${setupHelp}` }
   }
   if (missing.length > 0) {
     const label = missing.length === 2 ? 'OpenCode' : missing[0]
-    return { kind: 'error', text: `${label}のAPIキーが未設定です。\n${SETUP_HELP}` }
+    return { kind: 'error', text: `${label} API key is not configured.\n${setupHelp}` }
   }
-  return { kind: 'success', text: 'OpenCodeのAPIキーは保存されています。チャット右下のモデル選択から、使いたいOpenCodeのモデルを選んでください。' }
+  return { kind: 'success', text: setupSaved }
 }
 
 /** Whether one date stamp renders as a short local time. */
@@ -178,15 +178,15 @@ export function commandDefinitions(ctx: Context, services: CommandServices): Com
     },
     {
       name: 'dsh-opencode',
-      description: 'OpenCodeのAPIキー設定と使い方を案内',
+      description: setupText(ctx, 'OpenCode settings'),
       recordInput: false,
       handler: async (invocation: CommandInvocation): Promise<CommandResult> => {
         const input = invocation.rawInput.trim()
-        if (input !== '' && input !== 'status' && input !== 'help') return { kind: 'error', text: USAGE_ENABLE }
-        if (invocation.signal.aborted) return { kind: 'success', text: '確認をキャンセルしました。' }
-        if (input === 'help') return { kind: 'success', text: SETUP_HELP }
+        if (input !== '' && input !== 'status' && input !== 'help') return { kind: 'error', text: setupText(ctx, setupUsage) }
+        if (invocation.signal.aborted) return { kind: 'success', text: setupText(ctx, setupCancelled) }
+        if (input === 'help') return { kind: 'success', text: setupText(ctx, setupHelp) }
         const result = await setupGuidance(services)
-        return invocation.signal.aborted ? { kind: 'success', text: '確認をキャンセルしました。' } : result
+        return invocation.signal.aborted ? { kind: 'success', text: setupText(ctx, setupCancelled) } : { ...result, text: setupText(ctx, result.text ?? '') }
       },
     },
   ]
