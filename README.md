@@ -20,21 +20,23 @@ pnpm dsh plugin --profile web remove dsh-opencode
 ## 使い方
 
 1. DSH を再起動すると両ルートが登録される(以降のカタログ更新に再起動は不要)
-2. `/dsh-opencode` を実行して API キーを設定する
-   - キー未設定ならコマンドの入力フィールドにキーを貼って再度実行
-   - DSH の opencode キー保存先(`OPENCODE_API_KEY`)に書き込み、設定や他の参照を変えていないか検証
-3. モデルセレクターから OpenCode のモデルを選んで使う
+2. `/dsh-opencode` を引数なしで実行し、Client のポップアップから Zen または Go を選ぶ
+3. Settings > Models の各 Live 行、またはセットアップ画面で API キーを保存する
+4. モデルセレクターから OpenCode のモデルを選んで使う
 
 | コマンド | 効果 |
 |---|---|
-| `/dsh-opencode [<api-key>]` | API キーを保存して Zen/Go を有効化(未入力なら状態表示) |
+| `/dsh-opencode [status\|help]` | API キーを含めずに各 route の状態を表示 |
 | `/opencode-refresh [all\|zen\|go]` | カタログを強制更新 |
 | `/opencode-status` | 更新時刻・エラー・モデル数・キー設定状況 |
 | `/opencode-models <zen\|go> [--all]` | モデル一覧(`--all` で非対応含む) |
 
-- API キーはコマンドの入力フィールドで受け取り、`recordInput: false` でログに残さない
-- 保存後、設定セクションと他の認証参照が変わっていないことを検証してから成功を報告する
+- API キーはコマンド引数では受け取らず、Client の password 欄から DSH Credentials API にだけ保存
+- 既定では Zen / Go が `OPENCODE_API_KEY` を共有するため、1 回の保存が両 route に反映
+- カスタム credential reference は選択した route だけに保存。読み取り専用・確認不能は入力を無効化
 - 環境変数 `OPENCODE_API_KEY`(両ルート既定参照)でも可
+
+Client bundle は `pnpm build` で Host と一緒に生成される。Client command decoration、provider-card、shell overlay、Credentials Remote を持つ DSH 構成を対象とし、実ブラウザーでの互換性確認が必要です。
 
 ## 設定
 

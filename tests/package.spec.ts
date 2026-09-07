@@ -9,8 +9,8 @@ describe('package metadata', () => {
       name: string
       main: string
       files: string[]
-      dsh?: { bundle?: { patch?: string } }
-      exports?: Record<string, unknown>
+       exports?: Record<string, unknown>
+       dsh?: { bundle?: { patch?: string }; client?: { platform?: string; inject?: string[] } }
     }
     expect(manifest.name).toBe('dsh-opencode')
     expect(manifest.main).toBe('lib/index.js')
@@ -21,6 +21,9 @@ describe('package metadata', () => {
     expect(manifest.files).not.toContain('src')
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(Object.keys(manifest.exports ?? {})).toContain('./cordis.patch.yml')
+    expect(Object.keys(manifest.exports ?? {})).toContain('./client')
+    expect(manifest.dsh?.client?.platform).toBe('web')
+    expect(manifest.dsh?.client?.inject).toContain('@deepseek-ai/dsh-api-remotes')
   })
 
   it('inserts only this plugin and never touches existing rows', async () => {

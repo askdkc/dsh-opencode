@@ -12,6 +12,10 @@
       "types": "./lib/index.d.ts",
       "import": "./lib/index.js"
     },
+    "./client": {
+      "types": "./lib/client.d.ts",
+      "default": "./lib/client.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -27,7 +31,7 @@
   },
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsdown --config tsdown.client.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:live": "OPENCODE_LIVE_TESTS=1 vitest run tests/live.spec.ts",
@@ -36,6 +40,22 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-commands",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-commands",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-models",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-store"
+      ]
     }
   },
   "dependencies": {
@@ -55,8 +75,18 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
     "@deepseek-ai/dsh-agent": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-api-remotes": "0.1.2-rc.1",
     "@deepseek-ai/dsh-atomic-write": "0.1.2-rc.1",
     "@deepseek-ai/dsh-attachment": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-store": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-commands": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-layout": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings-models": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.2-rc.1",
     "@deepseek-ai/dsh-commands": "0.1.2-rc.1",
     "@deepseek-ai/dsh-credentials": "0.1.2-rc.1",
     "@deepseek-ai/dsh-credentials-local": "0.1.2-rc.1",
@@ -71,6 +101,8 @@
     "@deepseek-ai/schemastery": "^3.18.2",
     "@earendil-works/pi-ai": "0.84.2",
     "@types/node": "22.20.0",
+    "@types/react": "18.3.12",
+    "react": "18.3.1",
     "tsdown": "0.22.2",
     "typescript": "6.0.3",
     "vitest": "4.1.8",

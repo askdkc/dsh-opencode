@@ -128,6 +128,9 @@ export async function storeApiKey(
   providers: ProviderConfigs,
   value: string,
 ): Promise<string | undefined> {
+  // Map.values() is a one-shot iterator. Materialize it before taking any
+  // snapshots so the write targets and verification see the same profiles.
+  const providerList = [...providers]
   try {
     assertUsableApiKey(value, 'opencode-live', 'input')
   } catch (error) {
@@ -141,14 +144,15 @@ export async function storeApiKey(
   // The key is written to every configured reference (both routes default to
   // one shared reference, so this is normally a single write). Snapshot before,
   // write, snapshot after, then prove nothing else moved.
-  const before = await snapshotKeyring(ctx, providers)
-  const targets = [...new Set([...providers].map(({ apiKeyEnv }) => apiKeyEnv))]
+  const before = await snapshotKeyring(ctx, providerList)
+  const targets = [...new Set(providerList.map(({ apiKeyEnv }) => apiKeyEnv))]
+  if (targets.length === 0) return 'opencode-live: no credential reference is configured'
   try {
     for (const ref of targets) await credentials.set(ref, value)
   } catch (error) {
     return `opencode-live: could not store the API key (${(error as Error).message})`
   }
-  const after = await snapshotKeyring(ctx, providers)
+  const after = await snapshotKeyring(ctx, providerList)
   return verifyNoStrayChange(before, after, targets)
 }
 

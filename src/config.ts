@@ -26,6 +26,12 @@ const MAX_TIMER_DELAY_MS = 2_147_483_647
 /** The credential reference both OpenCode products document. */
 export const DEFAULT_API_KEY_ENV = 'OPENCODE_API_KEY'
 
+/** Settings-schema defaults published to Client Settings descriptors. */
+export const DEFAULT_PROVIDERS: Record<string, OpenCodeProviderConfig> = {
+  [ROUTE_BY_PRODUCT.zen]: { product: 'zen', apiKeyEnv: DEFAULT_API_KEY_ENV },
+  [ROUTE_BY_PRODUCT.go]: { product: 'go', apiKeyEnv: DEFAULT_API_KEY_ENV },
+}
+
 export const DEFAULT_REFRESH_INTERVAL_MS = 900_000
 export const DEFAULT_LIST_REVALIDATE_AFTER_MS = 60_000
 export const DEFAULT_TIMEOUT_MS = 15_000
@@ -93,7 +99,7 @@ const catalogSchema: z<CatalogConfigInput> = z.object({
 
 /** Runtime schema for {@link Config}. */
 export const Config: z<Config> = z.object({
-  providers: z.dict(providerSchema),
+  providers: z.dict(providerSchema).default(DEFAULT_PROVIDERS),
   catalog: catalogSchema.default({}),
 })
 

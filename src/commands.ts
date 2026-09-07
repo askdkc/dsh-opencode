@@ -5,25 +5,16 @@
  * source freshness and counts, and `/opencode-models` lists a product's
  * models, including the non-ready ones with their reasons under `--all`.
  *
- * `/dsh-opencode` stores the OpenCode API key. It declares a free-form input
- * field, so the client renders an input box; a key typed there is handed to
- * `storeApiKey`, which writes it through the DSH credential seam and verifies
- * no settings or unrelated credential changed. With no key in the field it
- * reports status and asks for one. No command accepts a key as argument text
- * after the slash (the value reaches the handler only through the declared
- * input), none of them displays secret values, and every handler sets
- * `recordInput: false` so nothing is duplicated into session logs.
+ * `/dsh-opencode` is deliberately status-only on the Host. Secret input is
+ * owned by the browser Client and never arrives through command rawInput.
  *
  * @module opencode-live/commands
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinition, CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
-import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import type { CatalogManager } from './catalog.ts'
-import type { ResolvedPluginConfig } from './config.ts'
 import type { CredentialFacts } from './credentials.ts'
-import { keyConfigured, keyReadonly, storeApiKey } from './keyring.ts'
 import type { CatalogModel, Product, RouteId } from './normalize.ts'
 import { PRODUCT_BY_ROUTE, ROUTE_BY_PRODUCT } from './normalize.ts'
 import { describeNonReadyState } from './normalize.ts'
@@ -31,20 +22,13 @@ import { describeNonReadyState } from './normalize.ts'
 /** Services the command handlers read. */
 export interface CommandServices {
   readonly catalog: CatalogManager
-  readonly config: () => ResolvedPluginConfig
   /** Presence-only credential facts for one route's reference. */
   readonly describeCredential: (route: RouteId) => Promise<CredentialFacts | undefined>
-  /** Store one key through the DSH credential seam, verifying no stray change. */
-  readonly storeApiKey: (value: string) => Promise<string | undefined>
-  /** Whether the shared reference is configured. */
-  readonly keyConfigured: () => Promise<boolean>
-  /** Whether any reference is read-only. */
-  readonly keyReadonly: () => Promise<boolean>
 }
 
 const USAGE_REFRESH = 'Usage: /opencode-refresh [all|zen|go]'
 const USAGE_MODELS = 'Usage: /opencode-models <zen|go> [--all]'
-const USAGE_ENABLE = 'Usage: /dsh-opencode [<api-key>] — type the key in the input field, or omit it to check status'
+const USAGE_ENABLE = 'Usage: /dsh-opencode [status|help]'
 
 /** Whether one date stamp renders as a short local time. */
 function renderTime(timestamp: number | undefined): string {
@@ -169,47 +153,14 @@ export function commandDefinitions(ctx: Context, services: CommandServices): Com
     },
     {
       name: 'dsh-opencode',
-      description: 'Store the OpenCode API key, or report status',
-      // The client renders an input field for the key; the value reaches the
-      // handler only through this declared input, never as slash-argument text.
-      input: { hint: 'Paste the OpenCode API key here (required only when unset)' },
+      description: 'Show OpenCode setup and credential status',
       recordInput: false,
       handler: async (invocation: CommandInvocation): Promise<CommandResult> => {
+        const input = invocation.rawInput.trim()
+        if (input !== '' && input !== 'status' && input !== 'help') return { kind: 'error', text: USAGE_ENABLE }
         const routes = [ROUTE_BY_PRODUCT.zen, ROUTE_BY_PRODUCT.go]
-        const key = invocation.rawInput.trim()
-        // A key typed in the field is the write path: store it through the
-        // credential seam and prove nothing else changed.
-        if (key.length > 0) {
-          if (invocation.signal.aborted) return { kind: 'success', text: 'Storing cancelled.' }
-          const failure = await services.storeApiKey(key)
-          if (failure !== undefined) return { kind: 'error', text: failure }
-          const lines = ['OpenCode API key stored. Zen and Go are enabled:']
-          for (const route of routes) lines.push(await productStatus(ctx, services, PRODUCT_BY_ROUTE[route]))
-          return { kind: 'success', text: lines.join('\n') }
-        }
-        // No key typed: report status and, when unset, ask for one in the field.
-        const configured = await services.keyConfigured()
-        if (!configured) {
-          const readOnly = await services.keyReadonly()
-          return {
-            kind: 'success',
-            text: [
-              'No OpenCode API key is configured yet.',
-              'Type the key into this command\'s input field and run again, or export it in the launch environment.',
-              ...readOnly ? ['The credential reference is read-only in this deployment.'] : [],
-              'This command never displays key values.',
-            ].join('\n'),
-          }
-        }
         if (invocation.signal.aborted) return { kind: 'success', text: 'Refresh cancelled.' }
-        try {
-          await services.catalog.refresh({ products: ['zen', 'go'], signal: invocation.signal })
-        } catch {
-          // The catalog keeps serving its last good snapshot; per-source
-          // errors are visible through /opencode-status rather than failing
-          // the status command wholesale.
-        }
-        const lines = ['OpenCode API key configured. Zen and Go are enabled:']
+        const lines = ['OpenCode setup status (use the Client setup form to save a key):']
         for (const route of routes) lines.push(await productStatus(ctx, services, PRODUCT_BY_ROUTE[route]))
         return { kind: 'success', text: lines.join('\n') }
       },

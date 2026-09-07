@@ -70,6 +70,17 @@ describe('opencode-live keyring', () => {
     expect(credentials.set).toHaveBeenCalledWith('OPENCODE_API_KEY', 'sk-abcd')
   })
 
+  it('materializes a production Map.values iterator before writing', async () => {
+    const credentials = credentialStore()
+    const ctx = ctxWith({ credentials: credentials.service, settings: settingsService({ providers: {} }) })
+    const resolved = resolveConfig({})
+    const failure = await storeApiKey(ctx, resolved.providers.values(), 'sk-iterator')
+    expect(failure).toBeUndefined()
+    expect(credentials.set).toHaveBeenCalledTimes(1)
+    expect(credentials.set).toHaveBeenCalledWith('OPENCODE_API_KEY', 'sk-iterator')
+    expect((await credentials.service.describe(credentialRef('OPENCODE_API_KEY'))).configured).toBe(true)
+  })
+
   it('writes to every distinct configured reference', async () => {
     const credentials = credentialStore()
     const ctx = ctxWith({ credentials: credentials.service, settings: settingsService({ providers: {} }) })
