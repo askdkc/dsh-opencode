@@ -294,39 +294,61 @@ describe('opencode-live commands (direct handlers)', () => {
     catalog.stop()
   })
 
-  it('reports route state without accepting key input', async () => {
+  it.each(['', 'status'])('gives a short actionable message when the key is missing (%s)', async (rawInput) => {
     const catalog = new CatalogManager({ config: testCatalogConfig() })
     const definitions = commandDefinitions({} as Context, {
       catalog,
       describeCredential: async () => ({ configured: false, writable: true }),
     })
-    const enable = definitions.find(definition => definition.name === 'dsh-opencode')
-    const withoutKey = await enable?.handler({ rawInput: '', signal: new AbortController().signal } as never)
-    expect(withoutKey?.kind).toBe('success')
-    const text = withoutKey?.kind === 'success' ? withoutKey.text ?? '' : ''
-    expect(text).toContain('opencode-zen-live')
-    expect(text).toContain('credential: not configured')
-    expect(text).not.toMatch(/sk-/i)
+    const result = await definitions.find(definition => definition.name === 'dsh-opencode')?.handler({ rawInput, signal: new AbortController().signal } as never)
+    expect(result?.kind).toBe('error')
+    expect(result?.text).toMatch(/^OpenCodeのAPIキーが未設定です。/)
+    expect(result?.text).toContain('Settings > Models')
+    expect(result?.text).toContain('Save API key')
+    expect(result?.text?.split('\n')).toHaveLength(2)
+    expect(result?.text).not.toMatch(/credential:|models ready:|official list:|opencode-zen-live|opencode-go-live/)
     catalog.stop()
   })
 
-  it('reports each route independently once credentials are configured', async () => {
-    const home = await mkdtemp(join(tmpdir(), 'opencode-commands-'))
-    homes.push(home)
-    const catalog = await commandCatalog(home)
+  it('directs users with stored keys to the model picker without claiming authentication was verified', async () => {
+    const catalog = new CatalogManager({ config: testCatalogConfig() })
     const definitions = commandDefinitions({} as Context, {
       catalog,
       describeCredential: async () => ({ configured: true, writable: true }),
     })
-    const enable = definitions.find(definition => definition.name === 'dsh-opencode')
-    const result = await enable?.handler({ rawInput: '', signal: new AbortController().signal } as never)
+    const result = await definitions.find(definition => definition.name === 'dsh-opencode')?.handler({ rawInput: '', signal: new AbortController().signal } as never)
     expect(result?.kind).toBe('success')
-    const text = result?.kind === 'success' ? result.text ?? '' : ''
-    expect(text).toContain('OpenCode setup status')
-    expect(text).toContain('opencode-zen-live')
-    expect(text).toContain('opencode-go-live')
-    expect(text).toContain('credential: configured')
-    expect(text).not.toMatch(/sk-/i)
+    expect(result?.text).toContain('APIキーは保存されています')
+    expect(result?.text).toContain('チャット右下のモデル選択')
+    expect(result?.text).not.toMatch(/models ready:|credential:|認証済み|利用可能/)
+    catalog.stop()
+  })
+
+  it('names only the product whose key is missing', async () => {
+    const catalog = new CatalogManager({ config: testCatalogConfig() })
+    const definitions = commandDefinitions({} as Context, {
+      catalog,
+      describeCredential: async route => ({ configured: route === 'opencode-zen-live', writable: true }),
+    })
+    const result = await definitions.find(definition => definition.name === 'dsh-opencode')?.handler({ rawInput: '', signal: new AbortController().signal } as never)
+    expect(result?.text?.split('\n')[0]).toBe('OpenCode GoのAPIキーが未設定です。')
+    catalog.stop()
+  })
+
+  it.each(['absent', 'throws'])('distinguishes an unavailable credential check from a missing key (%s)', async mode => {
+    const catalog = new CatalogManager({ config: testCatalogConfig() })
+    const definitions = commandDefinitions({} as Context, {
+      catalog,
+      describeCredential: async () => {
+        if (mode === 'throws') throw new Error('internal credential backend detail')
+        return undefined
+      },
+    })
+    const result = await definitions.find(definition => definition.name === 'dsh-opencode')?.handler({ rawInput: '', signal: new AbortController().signal } as never)
+    expect(result?.kind).toBe('error')
+    expect(result?.text).toContain('設定を確認できませんでした')
+    expect(result?.text).toContain('Settings > Models')
+    expect(result?.text).not.toMatch(/未設定|internal credential backend detail/)
     catalog.stop()
   })
 })

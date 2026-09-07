@@ -5,8 +5,8 @@
  * source freshness and counts, and `/opencode-models` lists a product's
  * models, including the non-ready ones with their reasons under `--all`.
  *
- * `/dsh-opencode` is deliberately status-only on the Host. Secret input is
- * owned by the browser Client and never arrives through command rawInput.
+ * `/dsh-opencode` returns a short setup instruction on the Host. Secret input is
+ * owned by Settings > Models and never arrives through command rawInput.
  *
  * @module opencode-live/commands
  */
@@ -16,7 +16,7 @@ import type { CommandDefinition, CommandInvocation, CommandResult } from '@deeps
 import type { CatalogManager } from './catalog.ts'
 import type { CredentialFacts } from './credentials.ts'
 import type { CatalogModel, Product, RouteId } from './normalize.ts'
-import { PRODUCT_BY_ROUTE, ROUTE_BY_PRODUCT } from './normalize.ts'
+import { ROUTE_BY_PRODUCT } from './normalize.ts'
 import { describeNonReadyState } from './normalize.ts'
 
 /** Services the command handlers read. */
@@ -28,7 +28,32 @@ export interface CommandServices {
 
 const USAGE_REFRESH = 'Usage: /opencode-refresh [all|zen|go]'
 const USAGE_MODELS = 'Usage: /opencode-models <zen|go> [--all]'
-const USAGE_ENABLE = 'Usage: /dsh-opencode [status|help]'
+const SETUP_HELP = 'Settings > Models で OpenCode Zen (Live) または OpenCode Go (Live) を開き、APIキーを入力して「Save API key」を押してください。'
+const USAGE_ENABLE = 'APIキーはチャットに入力せず、Settings > Models から設定してください。'
+
+/** User-facing setup guidance; detailed diagnostics belong to /opencode-status. */
+async function setupGuidance(services: CommandServices): Promise<CommandResult> {
+  const labels = ['OpenCode Zen', 'OpenCode Go']
+  const results = await Promise.allSettled([
+    services.describeCredential(ROUTE_BY_PRODUCT.zen),
+    services.describeCredential(ROUTE_BY_PRODUCT.go),
+  ])
+  const missing: string[] = []
+  const unknown: string[] = []
+  results.forEach((result, index) => {
+    if (result.status === 'rejected' || result.value === undefined) unknown.push(labels[index]!)
+    else if (!result.value.configured) missing.push(labels[index]!)
+  })
+  if (unknown.length > 0) {
+    const missingText = missing.length > 0 ? `${missing.join('・')}のAPIキーが未設定です。\n` : ''
+    return { kind: 'error', text: `${missingText}${unknown.join('・')}のAPIキー設定を確認できませんでした。\n${SETUP_HELP}` }
+  }
+  if (missing.length > 0) {
+    const label = missing.length === 2 ? 'OpenCode' : missing[0]
+    return { kind: 'error', text: `${label}のAPIキーが未設定です。\n${SETUP_HELP}` }
+  }
+  return { kind: 'success', text: 'OpenCodeのAPIキーは保存されています。チャット右下のモデル選択から、使いたいOpenCodeのモデルを選んでください。' }
+}
 
 /** Whether one date stamp renders as a short local time. */
 function renderTime(timestamp: number | undefined): string {
@@ -153,16 +178,15 @@ export function commandDefinitions(ctx: Context, services: CommandServices): Com
     },
     {
       name: 'dsh-opencode',
-      description: 'Show OpenCode setup and credential status',
+      description: 'OpenCodeのAPIキー設定と使い方を案内',
       recordInput: false,
       handler: async (invocation: CommandInvocation): Promise<CommandResult> => {
         const input = invocation.rawInput.trim()
         if (input !== '' && input !== 'status' && input !== 'help') return { kind: 'error', text: USAGE_ENABLE }
-        const routes = [ROUTE_BY_PRODUCT.zen, ROUTE_BY_PRODUCT.go]
-        if (invocation.signal.aborted) return { kind: 'success', text: 'Refresh cancelled.' }
-        const lines = ['OpenCode setup status (use the Client setup form to save a key):']
-        for (const route of routes) lines.push(await productStatus(ctx, services, PRODUCT_BY_ROUTE[route]))
-        return { kind: 'success', text: lines.join('\n') }
+        if (invocation.signal.aborted) return { kind: 'success', text: '確認をキャンセルしました。' }
+        if (input === 'help') return { kind: 'success', text: SETUP_HELP }
+        const result = await setupGuidance(services)
+        return invocation.signal.aborted ? { kind: 'success', text: '確認をキャンセルしました。' } : result
       },
     },
   ]

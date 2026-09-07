@@ -18,5 +18,5 @@ export function OpenCodeProviderCard(props: ProviderCardExtrasOwnerProps & { con
     return () => { active = false; dispose() }
   }, [props.controller, route])
   if (route === undefined) return null
-  return <section data-dsh-opencode-provider={route}><OpenCodeCredentialForm route={route} state={state} controller={props.controller} onCancel={() => undefined} /></section>
+  return <section data-dsh-opencode-provider={route}><OpenCodeCredentialForm route={route} state={state} controller={props.controller} /></section>
 }

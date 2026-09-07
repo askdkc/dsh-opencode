@@ -42,7 +42,7 @@ import { SOURCES } from './normalize.ts'
 
 /** The plugin's honest client identification value. */
 export const PLUGIN_ID = 'opencode-live'
-export const PLUGIN_VERSION = '0.1.3'
+export const PLUGIN_VERSION = '0.1.5'
 
 /** Header OpenCode Go documents for coding-agent session identification. */
 export const SESSION_HEADER = 'x-opencode-session'

@@ -81,6 +81,7 @@ export class CredentialController {
     this.generations.clear()
     this.states.clear()
     this.inFlight.clear()
+    this.listeners.clear()
   }
 
   public subscribe(listener: () => void): () => void {
@@ -91,9 +92,23 @@ export class CredentialController {
 
   private readonly listeners = new Set<() => void>()
 
+  private reloadScheduled = false
+
   private invalidate(): void {
-    for (const route of ['zen', 'go'] as const) this.generations.set(route, (this.generations.get(route) ?? 0) + 1)
+    if (this.disposed) return
+    for (const route of this.states.keys()) {
+      this.generations.set(route, (this.generations.get(route) ?? 0) + 1)
+      this.states.set(route, { kind: 'loading', route })
+    }
     for (const listener of this.listeners) listener()
+    if (this.reloadScheduled) return
+    this.reloadScheduled = true
+    queueMicrotask(() => {
+      this.reloadScheduled = false
+      if (!this.disposed) {
+        for (const route of this.states.keys()) void this.loadRoute(route)
+      }
+    })
   }
 
   private currentSettings(): { value: SettingsValue; face: ReturnType<ClientContext['settingsScope']['describe']> } | undefined {
@@ -114,24 +129,25 @@ export class CredentialController {
     const generation = (this.generations.get(route) ?? 0) + 1
     this.generations.set(route, generation)
     this.states.set(route, { kind: 'loading', route })
-    if (signal?.aborted || this.disposed) return unavailable(route, '確認がキャンセルされました。')
+    if (signal?.aborted || this.disposed) return unavailable(route, 'The credential check was cancelled.')
     const settings = this.ctx.settingsScope.describe()
     try {
       await settings.ensure()
       const current = this.currentSettings()
-      if (current === undefined) return this.commit(route, generation, unavailable(route, '設定の credential reference を確認できません。'))
+      if (current === undefined) return this.commit(route, generation, unavailable(route, 'The configured credential reference is unavailable.'))
       const ref = this.refFor(current.value, route)
-      if (ref === undefined) return this.commit(route, generation, unavailable(route, '設定の credential reference を確認できません。'))
+      if (ref === undefined) return this.commit(route, generation, unavailable(route, 'The configured credential reference is unavailable.'))
       const result = await this.ctx.remote.credentials.describe([ref]) as unknown as RemoteResult<Record<string, CredentialInfo>>
       const info = decodeDescribe(result, ref)
-      if (info === undefined) return this.commit(route, generation, unavailable(route, '認証状態を確認できません。'))
+      if (info === undefined) return this.commit(route, generation, unavailable(route, 'Could not check whether an API key is saved.'))
       const sharedWith: Route[] = []
       for (const other of ['zen', 'go'] as const) {
         if (other !== route && this.refFor(current.value, other) === ref) sharedWith.push(other)
       }
+      if (signal?.aborted) return this.commit(route, generation, unavailable(route, 'The credential check was cancelled.'))
       return this.commit(route, generation, { kind: 'known', route, ref, ...info, sharedWith })
     } catch {
-      return this.commit(route, generation, unavailable(route, '設定または認証状態を確認できません。'))
+      return this.commit(route, generation, unavailable(route, 'Could not load settings or credential status.'))
     }
   }
 
@@ -140,7 +156,7 @@ export class CredentialController {
       this.states.set(route, state)
       for (const listener of this.listeners) listener()
     }
-    return state
+    return this.states.get(route) ?? unavailable(route, 'The settings form was closed.')
   }
 
   public async loadRoutes(signal?: AbortSignal): Promise<Record<Route, RouteCredentialState>> {
@@ -155,28 +171,29 @@ export class CredentialController {
   public async save(route: Route, value: string, displayedRef: string): Promise<SaveResult> {
     const normalized = value.trim()
     if (normalized.length === 0 || /[\r\n]/.test(normalized) || /^['"].*['"]$/.test(normalized) || normalized.includes('=')) {
-      return { kind: 'error', message: 'API キーの形式を確認してください。' }
+      return { kind: 'error', message: 'Paste the API key only, without quotes or an environment-variable assignment.' }
     }
     const displayed = this.states.get(route)
     const fence = this.disposalGeneration
     const current = await this.loadRoute(route)
-    if (this.disposed || this.disposalGeneration !== fence) return { kind: 'error', message: '設定画面が閉じられました。再試行してください。' }
+    if (this.disposed || this.disposalGeneration !== fence) return { kind: 'error', message: 'The settings form was closed. Open it again and retry.' }
     if (displayed?.kind !== 'known' || current.kind !== 'known' || displayed.ref !== displayedRef || current.ref !== displayedRef) {
-      return { kind: 'error', message: '設定が更新されました。状態を再読み込みしてから再試行してください。' }
+      return { kind: 'error', message: 'The credential reference changed. Reload its status and retry.' }
     }
-    if (!current.writable) return { kind: 'error', message: 'この認証参照は読み取り専用です。' }
-    if (this.inFlight.has(current.ref)) return { kind: 'error', message: '同じ認証参照の保存が進行中です。' }
+    if (!current.writable) return { kind: 'error', message: 'This credential is read-only. Update it in the environment that launches DSH.' }
+    if (this.inFlight.has(current.ref)) return { kind: 'error', message: 'This credential is already being saved.' }
     this.inFlight.add(current.ref)
     try {
-      if (this.disposed || this.disposalGeneration !== fence) return { kind: 'error', message: '設定画面が閉じられました。再試行してください。' }
+      if (this.disposed || this.disposalGeneration !== fence) return { kind: 'error', message: 'The settings form was closed. Open it again and retry.' }
       const result = await this.ctx.remote.credentials.set(current.ref, normalized) as unknown as RemoteResult<unknown>
-      if (!isSuccessfulWrite(result)) return { kind: 'error', message: 'API キーを保存できませんでした。' }
+      if (!isSuccessfulWrite(result)) return { kind: 'error', message: 'Could not save the API key.' }
       const confirmed = await this.loadRoute(route)
+      for (const other of current.sharedWith) await this.loadRoute(other)
       return confirmed.kind === 'known' && confirmed.configured
-        ? { kind: 'saved', message: '保存しました。キーの値は表示しません。' }
-        : { kind: 'saved-unconfirmed', message: '保存要求は成功しましたが、状態を再確認できませんでした。' }
+        ? { kind: 'saved', message: 'API key saved.' }
+        : { kind: 'saved-unconfirmed', message: 'The key was saved, but its status could not be confirmed.' }
     } catch {
-      return { kind: 'error', message: 'API キーを保存できませんでした。' }
+      return { kind: 'error', message: 'Could not save the API key.' }
     } finally {
       this.inFlight.delete(current.ref)
     }

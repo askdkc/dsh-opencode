@@ -47,7 +47,7 @@ describe('resolveApiKeyFor', () => {
   it('fails loudly with MISSING_CREDENTIAL and never leaks the value', async () => {
     const ctx = fakeCtx({ resolve: async () => undefined })
     await expect(resolveApiKeyFor(ctx, 'opencode-go-live', profileWith('OPENCODE_API_KEY')))
-      .rejects.toMatchObject({ code: 'MISSING_CREDENTIAL' })
+      .rejects.toMatchObject({ code: 'MISSING_CREDENTIAL', message: expect.stringContaining('Settings > Models') })
     try {
       await resolveApiKeyFor(ctx, 'opencode-live', profileWith('OPENCODE_API_KEY'))
     } catch (error) {

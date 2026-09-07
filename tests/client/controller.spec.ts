@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import { CredentialController } from '../../src/client/credential-controller.ts'
-import { SetupController } from '../../src/client/setup-controller.ts'
 
 function context(
   providers: Record<string, string>,
@@ -26,7 +25,7 @@ function context(
   }
   const ctx = {
     settingsScope: { describe: () => settings },
-    remote: { credentials: { describe, set }, $on: () => () => undefined },
+    remote: { credentials: { describe, set }, $on: (_event: string, _listener: () => void): (() => void) => () => undefined },
   }
   return { ctx, set, describe, settings }
 }
@@ -57,15 +56,11 @@ describe('Client credential controller', () => {
     expect((await controller.save('go', 'sk-client-test', 'GO_KEY')).kind).toBe('saved')
   })
 
-  it('treats missing envelopes as unavailable and setup selection changes state', async () => {
+  it('treats missing envelopes as unavailable', async () => {
     const fake = context({})
     ;(fake.ctx.remote.credentials as any).describe = vi.fn(async (_refs: readonly string[]) => ({ ok: false, error: { code: 'UNAVAILABLE' } }))
     const controller = new CredentialController(fake.ctx as never)
     expect((await controller.loadRoute('zen')).kind).toBe('unavailable')
-    const setup = new SetupController(fake.ctx as never)
-    await setup.select({ id: 'zen', label: 'Zen' })
-    expect(setup.getSnapshot()).toMatchObject({ open: true, route: 'zen' })
-    setup.dispose()
   })
 
   it('does not invent a default reference when the settings namespace is missing', async () => {
@@ -89,4 +84,37 @@ describe('Client credential controller', () => {
     expect((await save).kind).toBe('error')
     expect(fake.set).not.toHaveBeenCalled()
   })
+  it('reloads both mounted routes after a pushed credential update', async () => {
+    const values = { OPENCODE_API_KEY: 'missing' }
+    const fake = context(values)
+    const handlers = new Map<string, () => void>()
+    fake.ctx.remote.$on = ((event: string, listener: () => void) => {
+      handlers.set(event, listener)
+      return () => handlers.delete(event)
+    })
+    const controller = new CredentialController(fake.ctx as never)
+    await controller.loadRoutes()
+    values.OPENCODE_API_KEY = 'configured'
+    handlers.get('credentials/reference-updated')?.()
+    await vi.waitFor(() => {
+      expect(controller.state('zen')).toMatchObject({ kind: 'known', configured: true })
+      expect(controller.state('go')).toMatchObject({ kind: 'known', configured: true })
+    })
+    controller.dispose()
+    expect(handlers.size).toBe(0)
+  })
+
+  it('does not return stale credential facts when a newer load wins', async () => {
+    const fake = context({ OPENCODE_API_KEY: 'configured' })
+    const controller = new CredentialController(fake.ctx as never)
+    let release!: (result: Awaited<ReturnType<typeof fake.describe>>) => void
+    fake.describe.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+    const old = controller.loadRoute('zen')
+    await vi.waitFor(() => expect(release).toBeDefined())
+    await controller.loadRoute('zen')
+    release({ ok: true, value: { OPENCODE_API_KEY: { configured: false, writable: true } } })
+    expect(await old).toMatchObject({ configured: true })
+    expect(controller.state('zen')).toMatchObject({ configured: true })
+  })
+
 })

@@ -36,8 +36,8 @@ export interface CredentialFacts {
  * Resolve the API key for one inference call.
  *
  * Mirrors the fail-loud reference semantics of the DSH pi-ai adapter: a named
- * reference that misses throws `MISSING_CREDENTIAL` naming the route and the
- * reference, never a key fragment, and never falls back to an ambient key
+ * reference that misses throws `MISSING_CREDENTIAL` with a settings instruction,
+ * never a key fragment, and never falls back to an ambient key
  * another provider might have left in the environment.
  * @param ctx - the plugin context carrying the optional credential service.
  * @param route - the live route the credential is resolved for.
@@ -58,9 +58,7 @@ export async function resolveApiKeyFor(
     : launchEnvironmentOf(ctx).get(ref)?.value
   if (hit !== undefined && hit.length > 0) return assertUsableApiKey(hit, 'opencode-live', ref)
   throw new LlmError(
-    `opencode-live: no credential for provider route "${route}"; its profile resolves ${ref}, which is not`
-    + ' set — store it through the credentials service (the web Models page writes it) or export it'
-    + ' in the launching environment',
+    `${profile.displayName}のAPIキーが未設定です。Settings > Models でAPIキーを入力して「Save API key」を押してから、もう一度送信してください。`,
     'MISSING_CREDENTIAL',
   )
 }

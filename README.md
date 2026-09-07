@@ -20,13 +20,14 @@ pnpm dsh plugin --profile web remove dsh-opencode
 ## 使い方
 
 1. DSH を再起動すると両ルートが登録される(以降のカタログ更新に再起動は不要)
-2. `/dsh-opencode` を引数なしで実行し、Client のポップアップから Zen または Go を選ぶ
-3. Settings > Models の各 Live 行、またはセットアップ画面で API キーを保存する
-4. モデルセレクターから OpenCode のモデルを選んで使う
+2. Settings > Models の OpenCode Zen (Live) または OpenCode Go (Live) 行にある **OpenCode API key** 欄にキーを貼り付け、**Save API key** を押す
+3. モデルセレクターから OpenCode のモデルを選んで使う
+
+`/dsh-opencode` によるセットアップは不要。既存のインストールでは、この修正を含むプラグインに更新して DSH を再起動し、ブラウザーも再読み込みしてください。
 
 | コマンド | 効果 |
 |---|---|
-| `/dsh-opencode [status\|help]` | API キーを含めずに各 route の状態を表示 |
+| `/dsh-opencode [status\|help]` | APIキーの設定場所、または設定後のモデル選択を短く案内 |
 | `/opencode-refresh [all\|zen\|go]` | カタログを強制更新 |
 | `/opencode-status` | 更新時刻・エラー・モデル数・キー設定状況 |
 | `/opencode-models <zen\|go> [--all]` | モデル一覧(`--all` で非対応含む) |
@@ -36,7 +37,7 @@ pnpm dsh plugin --profile web remove dsh-opencode
 - カスタム credential reference は選択した route だけに保存。読み取り専用・確認不能は入力を無効化
 - 環境変数 `OPENCODE_API_KEY`(両ルート既定参照)でも可
 
-Client bundle は `pnpm build` で Host と一緒に生成される。Client command decoration、provider-card、shell overlay、Credentials Remote を持つ DSH 構成を対象とし、実ブラウザーでの互換性確認が必要です。
+Client bundle は `pnpm build` で Host と一緒に生成される。Settings の provider-card 拡張と Credentials Remote を使用し、セッションやコマンド UI がなくてもキーを設定できます。
 
 ## 設定
 

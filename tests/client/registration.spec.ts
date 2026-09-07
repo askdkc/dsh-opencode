@@ -1,43 +1,57 @@
-import { describe, expect, it, vi } from 'vitest'
-import { apply } from '../../src/client/index.ts'
+import { afterEach, describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import { clientModule, registryPlugin } from './runtime.ts'
+import type { CredentialController } from '../../src/client/credential-controller.ts'
+import type * as Client from '../../src/client/index.ts'
 
-describe('Client registrations', () => {
-  it('waits for injection, remains live after apply, and disposes with the fiber', async () => {
-    const decorated: unknown[] = []
-    const registrations: Array<Record<string, unknown>> = []
-    let injectedServices: readonly string[] = []
-    const dispose = vi.fn()
-    const execute = vi.fn(async () => ({ ok: true, value: undefined }))
-    let effectBody: (() => void | (() => void)) | undefined
-    const settings = { describe: () => ({ ensure: async () => undefined, getSnapshot: () => ({ status: 'unavailable', view: undefined }), subscribe: () => () => undefined }) }
-    const ctx = {
-      inject: (names: readonly string[], callback: (value: unknown) => void) => {
-        injectedServices = names
-        callback({
-          commandUi: { decorate: (value: unknown) => { decorated.push(value); return dispose } },
-          settingsScope: settings,
-          remote: { credentials: { describe: async () => ({ ok: false }), set: async () => ({ ok: true }) }, commands: { execute }, $on: () => () => undefined },
-          slots: {
-            inject: (_name: string, factory: () => unknown) => { factory(); return dispose },
-            register: (definition: Record<string, unknown>) => { registrations.push(definition); return dispose },
-          },
-          effect: (effect: () => void | (() => void)) => { effectBody = effect },
-        })
-      },
+const contexts: Context[] = []
+afterEach(async () => { for (const ctx of contexts.splice(0)) await ctx.fiber.dispose() })
+
+describe('shipped Client with the real Harness slot registry', () => {
+  it.each([true, false])('registers the key form without commands (Models loaded first: %s)', async (modelsFirst) => {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(await registryPlugin())
+    const values = new Map<string, string>()
+    const settings = {
+      ensure: async () => undefined,
+      getSnapshot: () => ({ status: 'ready', view: { namespaces: [{ ns: 'opencode-live', value: { providers: {
+        'opencode-zen-live': { apiKeyEnv: 'OPENCODE_API_KEY' },
+        'opencode-go-live': { apiKeyEnv: 'OPENCODE_API_KEY' },
+      } } }] } }),
+      subscribe: () => () => undefined,
     }
-    apply(ctx as never)
-    expect(injectedServices).toEqual(['commandUi', 'remote.credentials', 'remote.commands', 'settingsScope', 'slots'])
-    expect(decorated).toHaveLength(0)
-    const cleanup = effectBody?.()
-    expect(decorated).toHaveLength(1)
-    expect(registrations).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'settings.models.provider-card', key: 'opencode-live' }),
-      expect.objectContaining({ name: 'shell.overlay', id: 'opencode-live-setup' }),
-    ]))
-    expect(dispose).not.toHaveBeenCalled()
-    await (decorated[0] as any).ui.onSelect({ id: 'refresh', label: 'refresh' }, { sessionId: 'session-1' })
-    expect(execute).toHaveBeenCalledWith('session-1', '/opencode-refresh all', [], undefined)
-    cleanup?.()
-    expect(dispose).toHaveBeenCalled()
+    ctx.provide('settingsScope')
+    ctx.provide('remote')
+    ctx.provide('remote.credentials')
+    ctx.set('settingsScope', { describe: () => settings } as never)
+    ctx.set('remote', { credentials: {
+      describe: async (refs: string[]) => ({ ok: true, value: Object.fromEntries(refs.map(ref => [ref, { configured: values.has(ref), writable: true }])) }),
+      set: async (ref: string, value: string) => { values.set(ref, value); return { ok: true } },
+    }, $on: () => () => undefined } as never)
+    ctx.set('remote.credentials', ctx.remote.credentials)
+    const declare = () => ctx.slots.register({
+      name: 'root', children: { 'settings.models.provider-card': { kind: 'keyed', scope: 'root' } },
+    }, (_props: PropsRenderSlots<'settings.models.provider-card'>) => null)
+    let removeModels = modelsFirst ? declare() : undefined
+    const client = await clientModule<typeof Client>(new URL('../../lib/client.js', import.meta.url))
+    const fiber = await ctx.plugin(client)
+    if (!modelsFirst) removeModels = declare()
+    const entries = () => ctx.slots.entriesOfSlot('settings.models.provider-card')
+    expect(entries()).toHaveLength(1)
+    expect(entries()[0]?.options.key).toBe('opencode-live')
+    const controller = entries()[0]?.inject?.().controller as CredentialController
+    expect(await controller.loadRoute('zen')).toMatchObject({ configured: false, writable: true })
+    expect(await controller.save('zen', 'sk-fixture-only', 'OPENCODE_API_KEY')).toMatchObject({ kind: 'saved' })
+    expect(values.get('OPENCODE_API_KEY')).toBe('sk-fixture-only')
+    expect(controller.state('go')).toMatchObject({ configured: true })
+    removeModels?.()
+    expect(entries()).toHaveLength(0)
+    removeModels = declare()
+    expect(entries()).toHaveLength(1)
+    await fiber.dispose()
+    expect(entries()).toHaveLength(0)
+    removeModels()
   })
 })

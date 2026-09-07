@@ -12,7 +12,7 @@ export default defineConfig({
   target: 'es2022',
   unbundle: false,
   outExtensions: () => ({ js: '.js', dts: '.d.ts' }),
-  external: [/^react(?:\/|$)/, /^react-dom(?:\/|$)/, '@deepseek-ai/dsh-client-ui-primitives'],
+  external: [/^react(?:\/|$)/, /^react-dom(?:\/|$)/],
   banner: { js: "window.__ModuleLoader__.load({id:'dsh-opencode',factory:(require)=>{var module={exports:{}};var exports=module.exports;" },
   footer: { js: 'return module.exports;}});' },
 })
