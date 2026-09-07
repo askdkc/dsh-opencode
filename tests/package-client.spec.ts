@@ -26,9 +26,28 @@ describe('generated Client artifact', () => {
       if (name === 'react' || name === 'react/jsx-runtime') return { createElement: () => null, jsx: () => null, jsxs: () => null, Fragment: Symbol('Fragment'), useState: () => [undefined, () => undefined], useEffect: () => undefined, useSyncExternalStore: () => ({ open: false }) }
       if (name === '@deepseek-ai/dsh-client-ui-primitives') return { Button: () => null, Modal: () => null }
       throw new Error(`unexpected dependency ${name}`)
-    }) as { apply?: unknown }
+    }) as { apply?: unknown; inject?: unknown }
     expect(typeof module.apply).toBe('function')
+    expect(module.inject).toBeUndefined()
     expect(requires).toContain('react')
     expect(requires).toContain('@deepseek-ai/dsh-client-ui-primitives')
+  })
+
+  it('keeps Client package dependencies in package metadata', async () => {
+    const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
+      dsh?: { client?: { inject?: unknown } }
+    }
+    expect(packageJson.dsh?.client?.inject).toEqual([
+      '@deepseek-ai/dsh-api-remotes',
+      '@deepseek-ai/dsh-client-locale',
+      '@deepseek-ai/dsh-client-ui-layout',
+      '@deepseek-ai/dsh-client-ui-commands',
+      '@deepseek-ai/dsh-client-ui-settings',
+      '@deepseek-ai/dsh-client-ui-settings-models',
+      '@deepseek-ai/dsh-client-ui-primitives',
+      '@deepseek-ai/dsh-client-ui-slots',
+      '@deepseek-ai/dsh-client-ui-renderer',
+      '@deepseek-ai/dsh-client-store',
+    ])
   })
 })

@@ -5,23 +5,28 @@ describe('Client registrations', () => {
   it('waits for injection, remains live after apply, and disposes with the fiber', async () => {
     const decorated: unknown[] = []
     const registrations: Array<Record<string, unknown>> = []
+    let injectedServices: readonly string[] = []
     const dispose = vi.fn()
     const execute = vi.fn(async () => ({ ok: true, value: undefined }))
     let effectBody: (() => void | (() => void)) | undefined
     const settings = { describe: () => ({ ensure: async () => undefined, getSnapshot: () => ({ status: 'unavailable', view: undefined }), subscribe: () => () => undefined }) }
     const ctx = {
-      inject: (_names: readonly string[], callback: (value: unknown) => void) => callback({
-        commandUi: { decorate: (value: unknown) => { decorated.push(value); return dispose } },
-        settingsScope: settings,
-        remote: { credentials: { describe: async () => ({ ok: false }), set: async () => ({ ok: true }) }, commands: { execute }, $on: () => () => undefined },
-        slots: {
-          inject: (_name: string, factory: () => unknown) => { factory(); return dispose },
-          register: (definition: Record<string, unknown>) => { registrations.push(definition); return dispose },
-        },
-        effect: (effect: () => void | (() => void)) => { effectBody = effect },
-      }),
+      inject: (names: readonly string[], callback: (value: unknown) => void) => {
+        injectedServices = names
+        callback({
+          commandUi: { decorate: (value: unknown) => { decorated.push(value); return dispose } },
+          settingsScope: settings,
+          remote: { credentials: { describe: async () => ({ ok: false }), set: async () => ({ ok: true }) }, commands: { execute }, $on: () => () => undefined },
+          slots: {
+            inject: (_name: string, factory: () => unknown) => { factory(); return dispose },
+            register: (definition: Record<string, unknown>) => { registrations.push(definition); return dispose },
+          },
+          effect: (effect: () => void | (() => void)) => { effectBody = effect },
+        })
+      },
     }
     apply(ctx as never)
+    expect(injectedServices).toEqual(['commandUi', 'remote.credentials', 'remote.commands', 'settingsScope', 'slots'])
     expect(decorated).toHaveLength(0)
     const cleanup = effectBody?.()
     expect(decorated).toHaveLength(1)

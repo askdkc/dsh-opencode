@@ -1731,8 +1731,6 @@ declare class SetupController {
 }
 //#endregion
 //#region src/client/index.d.ts
-/** Client packages required by this entry's injected services and UI modules. */
-declare const inject: readonly ["@deepseek-ai/dsh-api-remotes", "@deepseek-ai/dsh-commands", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-store", "@deepseek-ai/dsh-client-ui-commands", "@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-primitives", "@deepseek-ai/dsh-client-ui-renderer", "@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-client-ui-settings-models", "@deepseek-ai/dsh-client-ui-slots"];
 declare function apply(ctx: ClientContext): void;
 //#endregion
-export { type ClientContext, type ProviderOwnerProps, SetupController, apply, inject };
+export { type ClientContext, type ProviderOwnerProps, SetupController, apply };
