@@ -1,6 +1,6 @@
 {
   "name": "dsh-opencode",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Out-of-tree DSH bundle with live dynamic OpenCode Zen / Go model catalogs",
   "private": false,
   "license": "MIT",
